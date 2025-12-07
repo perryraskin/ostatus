@@ -51,7 +51,7 @@ A comprehensive service status monitoring application that supports both pull (a
 
 ### Environment Variables
 
-\`\`\`env
+```env
 DATABASE_URL=your_neon_connection_string
 NEXT_PUBLIC_STACK_PROJECT_ID=your_stack_project_id
 NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY=your_stack_key
@@ -62,13 +62,13 @@ WORKER_SECRET=your_optional_worker_secret
 VERCEL_TOKEN=your_vercel_api_token
 VERCEL_PROJECT_ID=your_vercel_project_id
 VERCEL_TEAM_ID=your_vercel_team_id  # Optional, only for team projects
-\`\`\`
+```
 
 ### Database Setup
 
 Run the SQL scripts in order:
 
-\`\`\`bash
+```bash
 # Initial tables
 psql $DATABASE_URL -f scripts/001-create-tables.sql
 
@@ -86,7 +86,7 @@ psql $DATABASE_URL -f scripts/006-restore-full-schema.sql
 
 # Add custom domain verification
 psql $DATABASE_URL -f scripts/007-add-domain-verification.sql
-\`\`\`
+```
 
 ## Health Check Worker
 
@@ -94,7 +94,7 @@ For pull monitoring to work, you need to run the health check worker.
 
 ### Option 1: Standalone Script
 
-\`\`\`bash
+```bash
 # Install dependencies
 npm install
 
@@ -103,20 +103,20 @@ npx ts-node scripts/health-check-worker.ts
 
 # Run in daemon mode (checks every 60 seconds)
 npx ts-node scripts/health-check-worker.ts --daemon --interval 60
-\`\`\`
+```
 
 ### Option 2: API Endpoint (Serverless/Cron)
 
 Call the worker API endpoint:
 
-\`\`\`bash
+```bash
 # Without authentication
 curl -X POST https://your-app.vercel.app/api/worker/check
 
 # With authentication
 curl -X POST https://your-app.vercel.app/api/worker/check \
   -H "Authorization: Bearer YOUR_WORKER_SECRET"
-\`\`\`
+```
 
 Use with Vercel Cron, GitHub Actions, or any scheduler.
 
@@ -126,7 +126,7 @@ Use with Vercel Cron, GitHub Actions, or any scheduler.
 
 Report status from your services:
 
-\`\`\`bash
+```bash
 # Simple ping (reports operational)
 curl https://your-app.vercel.app/api/ping/YOUR_PUSH_TOKEN
 
@@ -144,7 +144,7 @@ curl -X POST https://your-app.vercel.app/api/ping/YOUR_PUSH_TOKEN \
 curl -X POST https://your-app.vercel.app/api/ping/YOUR_PUSH_TOKEN \
   -H "Content-Type: application/json" \
   -d '{"status": "error", "message": "Database connection failed"}'
-\`\`\`
+```
 
 ### Public Status Page
 
@@ -207,7 +207,7 @@ When configuring pull endpoints, you can define criteria:
 
 ## Architecture
 
-\`\`\`
+```
 ┌─────────────────┐     ┌──────────────────┐
 │  Your Services  │────>│  Push Endpoint   │
 │  (Cron, Apps)   │     │  /api/ping/:token│
@@ -223,7 +223,7 @@ When configuring pull endpoints, you can define criteria:
                         │   Status Page    │
                         │   (Dashboard)    │
                         └──────────────────┘
-\`\`\`
+```
 
 ## License
 
