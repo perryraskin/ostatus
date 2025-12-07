@@ -9,11 +9,15 @@ import { useState } from "react"
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 interface PublicStatusViewProps {
-  slug: string
+  slug?: string
+  domain?: string
 }
 
-export function PublicStatusView({ slug }: PublicStatusViewProps) {
-  const { data, error, isLoading } = useSWR(`/api/status/${slug}`, fetcher, {
+export function PublicStatusView({ slug, domain }: PublicStatusViewProps) {
+  // Build API URL based on whether we have a slug or domain
+  const apiUrl = domain ? `/api/status/_domain?domain=${encodeURIComponent(domain)}` : `/api/status/${slug}`
+
+  const { data, error, isLoading } = useSWR(apiUrl, fetcher, {
     refreshInterval: 30000,
   })
 
