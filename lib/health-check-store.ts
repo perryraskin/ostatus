@@ -12,7 +12,6 @@ export const generatePushToken = () => {
   return token
 }
 
-// Default services for demo - added monitoringType and push example
 export const defaultServices: Service[] = [
   {
     id: generateId(),
@@ -24,32 +23,13 @@ export const defaultServices: Service[] = [
     endpoints: [
       {
         id: generateId(),
-        name: "Login Endpoint",
-        monitoringType: "pull",
-        url: "https://jsonplaceholder.typicode.com/users/1",
-        method: "GET",
-        interval: 30,
-        timeout: 5000,
-        successCriteria: [{ type: "status_code", operator: "equals", value: "200" }],
-        failureCriteria: [{ type: "status_code", operator: "greater_than", value: "499" }],
+        name: "Auth Service Heartbeat",
+        description: "Pings every 60 seconds from auth microservice",
+        pushToken: generatePushToken(),
+        expectedInterval: 60,
+        gracePeriod: 30,
         status: "operational",
-        responseTime: 145,
-      },
-      {
-        id: generateId(),
-        name: "Token Refresh",
-        monitoringType: "pull",
-        url: "https://jsonplaceholder.typicode.com/posts/1",
-        method: "GET",
-        interval: 60,
-        timeout: 3000,
-        successCriteria: [
-          { type: "status_code", operator: "equals", value: "200" },
-          { type: "response_time", operator: "less_than", value: "1000" },
-        ],
-        failureCriteria: [],
-        status: "operational",
-        responseTime: 89,
+        lastPing: new Date(Date.now() - 30000), // 30 seconds ago
       },
     ],
   },
@@ -58,39 +38,30 @@ export const defaultServices: Service[] = [
     name: "Scheduled Jobs",
     description: "Background tasks and cron jobs",
     category: "Background Services",
-    aggregatedStatus: "operational",
+    aggregatedStatus: "degraded",
     lastUpdated: new Date(),
     endpoints: [
       {
         id: generateId(),
         name: "Daily Backup Job",
-        monitoringType: "push",
+        description: "Expected to run every 24 hours",
         pushToken: generatePushToken(),
-        url: "",
-        method: "GET",
-        interval: 86400, // Expected every 24 hours
-        gracePeriod: 3600, // 1 hour grace period
-        timeout: 5000,
-        successCriteria: [],
-        failureCriteria: [],
+        expectedInterval: 86400, // 24 hours
+        gracePeriod: 3600, // 1 hour grace
         status: "operational",
         lastPing: new Date(Date.now() - 3600000), // 1 hour ago
       },
       {
         id: generateId(),
         name: "Hourly Sync",
-        monitoringType: "push",
+        description: "Syncs data every hour",
         pushToken: generatePushToken(),
-        url: "",
-        method: "GET",
-        interval: 3600, // Expected every hour
-        gracePeriod: 300, // 5 minute grace period
-        timeout: 5000,
-        successCriteria: [],
-        failureCriteria: [],
+        expectedInterval: 3600, // 1 hour
+        gracePeriod: 300, // 5 min grace
         status: "degraded",
-        lastPing: new Date(Date.now() - 4200000), // 70 minutes ago (missed)
-        errorMessage: "No ping received within expected interval",
+        isDegraded: true,
+        lastPing: new Date(Date.now() - 4200000), // 70 minutes ago
+        errorMessage: "Service reported degraded performance",
       },
     ],
   },
@@ -99,82 +70,110 @@ export const defaultServices: Service[] = [
     name: "Payment Gateway",
     description: "Payment processing and transaction management",
     category: "Core Services",
-    aggregatedStatus: "degraded",
-    lastUpdated: new Date(),
-    endpoints: [
-      {
-        id: generateId(),
-        name: "Process Payment",
-        monitoringType: "pull",
-        url: "https://jsonplaceholder.typicode.com/posts",
-        method: "GET",
-        interval: 15,
-        timeout: 10000,
-        successCriteria: [{ type: "status_code", operator: "equals", value: "200" }],
-        failureCriteria: [],
-        status: "degraded",
-        responseTime: 890,
-        errorMessage: "Response time exceeds threshold",
-      },
-    ],
-  },
-  {
-    id: generateId(),
-    name: "CDN & Static Assets",
-    description: "Content delivery and static file hosting",
-    category: "Infrastructure",
     aggregatedStatus: "operational",
     lastUpdated: new Date(),
     endpoints: [
       {
         id: generateId(),
-        name: "Asset Server",
-        monitoringType: "pull",
-        url: "https://jsonplaceholder.typicode.com/albums/1",
-        method: "GET",
-        interval: 60,
-        timeout: 5000,
-        successCriteria: [{ type: "status_code", operator: "equals", value: "200" }],
-        failureCriteria: [],
+        name: "Payment Processor",
+        description: "Heartbeat from payment service",
+        pushToken: generatePushToken(),
+        expectedInterval: 30,
+        gracePeriod: 15,
         status: "operational",
-        responseTime: 45,
+        lastPing: new Date(Date.now() - 10000),
       },
     ],
   },
   {
     id: generateId(),
-    name: "Database Cluster",
-    description: "Primary database and read replicas",
+    name: "Email Service",
+    description: "Transactional email delivery",
     category: "Infrastructure",
     aggregatedStatus: "outage",
     lastUpdated: new Date(),
     endpoints: [
       {
         id: generateId(),
-        name: "Primary DB",
-        monitoringType: "pull",
-        url: "https://httpstat.us/500",
-        method: "GET",
-        interval: 10,
-        timeout: 3000,
-        successCriteria: [{ type: "status_code", operator: "equals", value: "200" }],
-        failureCriteria: [{ type: "status_code", operator: "greater_than", value: "499" }],
+        name: "Email Worker",
+        description: "Email queue processor - expected every 5 minutes",
+        pushToken: generatePushToken(),
+        expectedInterval: 300,
+        gracePeriod: 60,
         status: "outage",
-        responseTime: 0,
-        errorMessage: "Connection refused",
+        lastPing: new Date(Date.now() - 600000), // 10 minutes ago - missed
+        errorMessage: "No ping received within expected interval",
+      },
+    ],
+  },
+  {
+    id: generateId(),
+    name: "Database Cluster",
+    description: "Primary database monitoring",
+    category: "Infrastructure",
+    aggregatedStatus: "operational",
+    lastUpdated: new Date(),
+    endpoints: [
+      {
+        id: generateId(),
+        name: "Primary DB Heartbeat",
+        description: "Database health check every 10 seconds",
+        pushToken: generatePushToken(),
+        expectedInterval: 10,
+        gracePeriod: 5,
+        status: "operational",
+        lastPing: new Date(Date.now() - 5000),
+      },
+      {
+        id: generateId(),
+        name: "Read Replica Heartbeat",
+        description: "Replica sync check every 30 seconds",
+        pushToken: generatePushToken(),
+        expectedInterval: 30,
+        gracePeriod: 15,
+        status: "operational",
+        lastPing: new Date(Date.now() - 20000),
       },
     ],
   },
 ]
 
-// Calculate aggregated status from endpoints
+// Calculate aggregated status from endpoints, considering timeouts
 export function calculateAggregatedStatus(endpoints: HealthCheckEndpoint[]): Service["aggregatedStatus"] {
   if (endpoints.length === 0) return "unknown"
 
-  const statuses = endpoints.map((e) => e.status || "unknown")
+  const now = new Date()
+  const statuses = endpoints.map((e) => {
+    // Check if endpoint has timed out
+    if (e.lastPing) {
+      const lastPing = new Date(e.lastPing)
+      const timeoutMs = (e.expectedInterval + e.gracePeriod) * 1000
+      const elapsed = now.getTime() - lastPing.getTime()
+
+      if (elapsed > timeoutMs) {
+        return "outage"
+      }
+    } else {
+      // Never pinged
+      return "unknown"
+    }
+    return e.status || "unknown"
+  })
 
   if (statuses.every((s) => s === "operational")) return "operational"
   if (statuses.some((s) => s === "outage")) return "outage"
   if (statuses.some((s) => s === "degraded")) return "degraded"
   return "unknown"
+}
+
+// Check if an endpoint is timed out
+export function isEndpointTimedOut(endpoint: HealthCheckEndpoint): boolean {
+  if (!endpoint.lastPing) return true // Never pinged = timed out
+
+  const now = new Date()
+  const lastPing = new Date(endpoint.lastPing)
+  const timeoutMs = (endpoint.expectedInterval + endpoint.gracePeriod) * 1000
+  const elapsed = now.getTime() - lastPing.getTime()
+
+  return elapsed > timeoutMs
 }

@@ -2,7 +2,6 @@ import { sql } from "@/lib/db"
 import { NextResponse } from "next/server"
 import { stackServerApp } from "@/stack"
 
-// POST create a new endpoint
 export async function POST(request: Request) {
   try {
     const user = await stackServerApp.getUser()
@@ -11,22 +10,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const {
-      id,
-      serviceId,
-      name,
-      monitoringType = "pull",
-      pushToken,
-      url,
-      method,
-      headers,
-      requestBody,
-      interval,
-      timeout,
-      gracePeriod = 60,
-      successCriteria,
-      failureCriteria,
-    } = body
+    const { id, serviceId, name, description, pushToken, expectedInterval = 60, gracePeriod = 60 } = body
 
     const serviceCheck = await sql`SELECT id FROM services WHERE id = ${serviceId} AND user_id = ${user.id}`
     if (serviceCheck.length === 0) {
@@ -35,25 +19,19 @@ export async function POST(request: Request) {
 
     await sql`
       INSERT INTO endpoints (
-        id, service_id, name, monitoring_type, push_token, url, method, headers, body, 
-        interval_seconds, timeout_ms, grace_period, success_criteria, failure_criteria, status
+        id, service_id, name, description, push_token, 
+        expected_interval, grace_period, status, is_degraded
       )
       VALUES (
-        ${id}, ${serviceId}, ${name}, ${monitoringType}, ${pushToken || null}, 
-        ${url || ""}, ${method}, 
-        ${headers ? JSON.stringify(headers) : null}::jsonb, 
-        ${requestBody || null},
-        ${interval}, ${timeout}, ${gracePeriod},
-        ${JSON.stringify(successCriteria || [])}::jsonb, 
-        ${JSON.stringify(failureCriteria || [])}::jsonb, 
-        'unknown'
+        ${id}, ${serviceId}, ${name}, ${description || null}, ${pushToken},
+        ${expectedInterval}, ${gracePeriod}, 'unknown', false
       )
     `
 
     // Update service aggregated status
     await updateServiceStatus(serviceId)
 
-    return NextResponse.json({ success: true, id })
+    return NextResponse.json({ success: true, id, pushToken })
   } catch (error) {
     console.error("Failed to create endpoint:", error)
     return NextResponse.json({ error: "Failed to create endpoint" }, { status: 500 })
@@ -61,11 +39,27 @@ export async function POST(request: Request) {
 }
 
 async function updateServiceStatus(serviceId: string) {
-  const endpoints = await sql`SELECT status FROM endpoints WHERE service_id = ${serviceId}`
+  const endpoints = await sql`
+    SELECT status, expected_interval, grace_period, last_ping 
+    FROM endpoints 
+    WHERE service_id = ${serviceId}
+  `
 
   let status = "unknown"
   if (endpoints.length > 0) {
-    const statuses = endpoints.map((e) => e.status)
+    const now = new Date()
+    const statuses = endpoints.map((e) => {
+      if (e.last_ping) {
+        const lastPing = new Date(e.last_ping)
+        const timeoutMs = (e.expected_interval + e.grace_period) * 1000
+        const elapsed = now.getTime() - lastPing.getTime()
+        if (elapsed > timeoutMs) return "outage"
+      } else {
+        return "unknown"
+      }
+      return e.status
+    })
+
     if (statuses.every((s) => s === "operational")) status = "operational"
     else if (statuses.some((s) => s === "outage")) status = "outage"
     else if (statuses.some((s) => s === "degraded")) status = "degraded"

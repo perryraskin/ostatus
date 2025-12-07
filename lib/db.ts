@@ -10,23 +10,20 @@ export type DbService = {
   aggregated_status: string
   last_updated: Date
   created_at: Date
+  user_id: string
 }
 
 export type DbEndpoint = {
   id: string
   service_id: string
   name: string
-  url: string
-  method: string
-  headers: Record<string, string> | null
-  body: string | null
-  interval_seconds: number
-  timeout_ms: number
-  success_criteria: Array<{ type: string; operator: string; value: string }>
-  failure_criteria: Array<{ type: string; operator: string; value: string }>
+  description: string | null
+  push_token: string
+  expected_interval: number
+  grace_period: number
   status: string
-  response_time: number | null
   error_message: string | null
-  last_check: Date | null
+  is_degraded: boolean
+  last_ping: Date | null
   created_at: Date
 }

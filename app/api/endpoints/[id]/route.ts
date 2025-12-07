@@ -2,7 +2,6 @@ import { sql } from "@/lib/db"
 import { NextResponse } from "next/server"
 import { stackServerApp } from "@/stack"
 
-// PUT update an endpoint
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await stackServerApp.getUser()
@@ -12,8 +11,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     const { id } = await params
     const body = await request.json()
-    const { serviceId, name, url, method, headers, requestBody, interval, timeout, successCriteria, failureCriteria } =
-      body
+    const { serviceId, name, description, expectedInterval, gracePeriod } = body
 
     const serviceCheck = await sql`SELECT id FROM services WHERE id = ${serviceId} AND user_id = ${user.id}`
     if (serviceCheck.length === 0) {
@@ -24,14 +22,9 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       UPDATE endpoints 
       SET 
         name = ${name}, 
-        url = ${url}, 
-        method = ${method}, 
-        headers = ${headers ? JSON.stringify(headers) : null}::jsonb,
-        body = ${requestBody || null},
-        interval_seconds = ${interval}, 
-        timeout_ms = ${timeout},
-        success_criteria = ${JSON.stringify(successCriteria || [])}::jsonb,
-        failure_criteria = ${JSON.stringify(failureCriteria || [])}::jsonb
+        description = ${description || null},
+        expected_interval = ${expectedInterval || 60}, 
+        grace_period = ${gracePeriod || 60}
       WHERE id = ${id}
     `
 
@@ -78,11 +71,27 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 }
 
 async function updateServiceStatus(serviceId: string) {
-  const endpoints = await sql`SELECT status FROM endpoints WHERE service_id = ${serviceId}`
+  const endpoints = await sql`
+    SELECT status, expected_interval, grace_period, last_ping 
+    FROM endpoints 
+    WHERE service_id = ${serviceId}
+  `
 
   let status = "unknown"
   if (endpoints.length > 0) {
-    const statuses = endpoints.map((e) => e.status)
+    const now = new Date()
+    const statuses = endpoints.map((e) => {
+      if (e.last_ping) {
+        const lastPing = new Date(e.last_ping)
+        const timeoutMs = (e.expected_interval + e.grace_period) * 1000
+        const elapsed = now.getTime() - lastPing.getTime()
+        if (elapsed > timeoutMs) return "outage"
+      } else {
+        return "unknown"
+      }
+      return e.status
+    })
+
     if (statuses.every((s) => s === "operational")) status = "operational"
     else if (statuses.some((s) => s === "outage")) status = "outage"
     else if (statuses.some((s) => s === "degraded")) status = "degraded"

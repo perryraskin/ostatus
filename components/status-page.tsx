@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import useSWR, { mutate } from "swr"
 import { useUser } from "@stackframe/stack"
 import type { Service, HealthCheckEndpoint } from "@/lib/types"
@@ -37,7 +37,7 @@ export function StatusPage() {
     error,
     isLoading,
   } = useSWR<Service[]>(user && !isDemoMode ? "/api/services" : null, fetcher, {
-    refreshInterval: 30000, // Auto-refresh every 30 seconds
+    refreshInterval: 10000, // More frequent refresh for push-based monitoring
   })
 
   // Use demo services or database services
@@ -52,6 +52,23 @@ export function StatusPage() {
   } | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastRefresh, setLastRefresh] = useState(new Date())
+
+  useEffect(() => {
+    if (!isDemoMode) return
+
+    const interval = setInterval(() => {
+      setDemoServices((prevServices) =>
+        prevServices.map((service) => ({
+          ...service,
+          aggregatedStatus: calculateAggregatedStatus(service.endpoints),
+          lastUpdated: new Date(),
+        })),
+      )
+      setLastRefresh(new Date())
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [isDemoMode])
 
   // Enter demo mode with sample data
   const enterDemoMode = () => {
@@ -71,34 +88,28 @@ export function StatusPage() {
     setDemoServices([])
   }
 
-  // Simulate health check updates (demo mode) or trigger real refresh
+  // Refresh handler
   const runHealthChecks = useCallback(async () => {
     setIsRefreshing(true)
 
     if (isDemoMode) {
-      // Simulate API calls with random status updates for demo
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Simulate receiving pings for demo
+      await new Promise((resolve) => setTimeout(resolve, 500))
 
       setDemoServices((prevServices) =>
         prevServices.map((service) => ({
           ...service,
           endpoints: service.endpoints.map((endpoint) => {
-            const statuses: HealthCheckEndpoint["status"][] = [
-              "operational",
-              "operational",
-              "operational",
-              "degraded",
-              "outage",
-            ]
-            const randomStatus =
-              Math.random() > 0.8 ? statuses[Math.floor(Math.random() * statuses.length)] : endpoint.status
-
-            return {
-              ...endpoint,
-              status: randomStatus,
-              responseTime: Math.floor(Math.random() * 500) + 50,
-              lastCheck: new Date(),
+            // Randomly simulate pings coming in
+            if (Math.random() > 0.3) {
+              return {
+                ...endpoint,
+                lastPing: new Date(),
+                status: Math.random() > 0.9 ? "degraded" : "operational",
+                errorMessage: Math.random() > 0.9 ? "High latency detected" : undefined,
+              }
             }
+            return endpoint
           }),
           lastUpdated: new Date(),
           aggregatedStatus: calculateAggregatedStatus(service.endpoints),
@@ -206,7 +217,6 @@ export function StatusPage() {
           body: JSON.stringify({
             ...endpoint,
             serviceId: editingEndpoint.serviceId,
-            requestBody: endpoint.body,
           }),
         })
         await mutate("/api/services")
@@ -260,7 +270,7 @@ export function StatusPage() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight">Service Status</h1>
-              <p className="text-muted-foreground font-mono mt-1">Real-time health monitoring dashboard</p>
+              <p className="text-muted-foreground font-mono mt-1">Push-based health monitoring dashboard</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -286,7 +296,7 @@ export function StatusPage() {
                 className="border-2 border-black shadow-[4px_4px_0px_0px_#000] hover:shadow-[6px_6px_0px_0px_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all bg-transparent"
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
-                {isRefreshing ? "Checking..." : "Refresh"}
+                {isRefreshing ? "Refreshing..." : "Refresh"}
               </Button>
 
               {canAddService && (
@@ -402,7 +412,7 @@ export function StatusPage() {
             <p className="text-muted-foreground mb-6">
               {isDemoMode
                 ? "Add your first service to start monitoring in demo mode."
-                : "Add your first service to start monitoring."}
+                : "Add your first service and configure push endpoints for your cron jobs and services to ping."}
             </p>
             <Button
               onClick={() => {
@@ -421,7 +431,7 @@ export function StatusPage() {
       {/* Footer */}
       <footer className="border-t-4 border-black bg-muted mt-auto">
         <div className="container mx-auto px-4 py-4 text-center font-mono text-sm">
-          <span className="font-bold">Auto-refresh:</span> Every 30 seconds •
+          <span className="font-bold">Auto-refresh:</span> Every 10 seconds •
           <span className="font-bold ml-2">Last check:</span> {lastRefresh.toLocaleTimeString()}
           {isDemoMode && <span className="ml-2 text-amber-600 font-bold">• DEMO MODE</span>}
         </div>
