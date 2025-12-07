@@ -1,9 +1,15 @@
 import { sql } from "@/lib/db"
 import { NextResponse } from "next/server"
+import { stackServerApp } from "@/stack"
 
-// GET all services with their endpoints
+// GET all services with their endpoints for the current user
 export async function GET() {
   try {
+    const user = await stackServerApp.getUser()
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const services = await sql`
       SELECT 
         s.*,
@@ -30,6 +36,7 @@ export async function GET() {
         ) as endpoints
       FROM services s
       LEFT JOIN endpoints e ON s.id = e.service_id
+      WHERE s.user_id = ${user.id}
       GROUP BY s.id
       ORDER BY s.created_at DESC
     `
@@ -54,12 +61,17 @@ export async function GET() {
 // POST create a new service
 export async function POST(request: Request) {
   try {
+    const user = await stackServerApp.getUser()
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const body = await request.json()
     const { id, name, description, category } = body
 
     await sql`
-      INSERT INTO services (id, name, description, category, aggregated_status, last_updated)
-      VALUES (${id}, ${name}, ${description || ""}, ${category || "Uncategorized"}, 'unknown', NOW())
+      INSERT INTO services (id, name, description, category, aggregated_status, last_updated, user_id)
+      VALUES (${id}, ${name}, ${description || ""}, ${category || "Uncategorized"}, 'unknown', NOW(), ${user.id})
     `
 
     return NextResponse.json({ success: true, id })

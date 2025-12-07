@@ -3,19 +3,20 @@ import type { Metadata, Viewport } from "next"
 
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
-
-import { DM_Sans, Space_Mono, DM_Sans as V0_Font_DM_Sans, Space_Mono as V0_Font_Space_Mono, Source_Serif_4 as V0_Font_Source_Serif_4 } from 'next/font/google'
-
-// Initialize fonts
-const _dmSans = V0_Font_DM_Sans({ subsets: ['latin'], weight: ["100","200","300","400","500","600","700","800","900","1000"] })
-const _spaceMono = V0_Font_Space_Mono({ subsets: ['latin'], weight: ["400","700"] })
-const _sourceSerif_4 = V0_Font_Source_Serif_4({ subsets: ['latin'], weight: ["200","300","400","500","600","700","800","900"] })
+import { StackProvider, StackTheme } from "@stackframe/stack"
+import { stackServerApp } from "@/stack"
 
 const dmSans = DM_Sans({ subsets: ["latin"] })
 const spaceMono = Space_Mono({
   weight: ["400", "700"],
   subsets: ["latin"],
 })
+import { DM_Sans, Space_Mono, DM_Sans as V0_Font_DM_Sans, Space_Mono as V0_Font_Space_Mono, Source_Serif_4 as V0_Font_Source_Serif_4 } from 'next/font/google'
+
+// Initialize fonts
+const _dmSans = V0_Font_DM_Sans({ subsets: ['latin'], weight: ["100","200","300","400","500","600","700","800","900","1000"] })
+const _spaceMono = V0_Font_Space_Mono({ subsets: ['latin'], weight: ["400","700"] })
+const _sourceSerif_4 = V0_Font_Source_Serif_4({ subsets: ['latin'], weight: ["200","300","400","500","600","700","800","900"] })
 
 export const metadata: Metadata = {
   title: "Service Status Dashboard",
@@ -54,7 +55,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-sans antialiased`}>
-        {children}
+        <StackProvider app={stackServerApp}>
+          <StackTheme>{children}</StackTheme>
+        </StackProvider>
         <Analytics />
       </body>
     </html>

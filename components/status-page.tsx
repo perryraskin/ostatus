@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react"
 import useSWR, { mutate } from "swr"
+import { useUser } from "@stackframe/stack"
 import type { Service, HealthCheckEndpoint } from "@/lib/types"
 import { defaultServices, calculateAggregatedStatus, generateId } from "@/lib/health-check-store"
 import { StatusOverview } from "./status-overview"
@@ -10,22 +11,31 @@ import { ServiceForm } from "./service-form"
 import { EndpointForm } from "./endpoint-form"
 import { ColorPicker } from "./color-picker"
 import { DemoModeBanner } from "./demo-mode-banner"
+import { UserMenu } from "./user-menu"
 import { Button } from "@/components/ui/button"
 import { Plus, RefreshCw, Play } from "lucide-react"
+import Link from "next/link"
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json())
+const fetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (res.status === 401) {
+      throw new Error("Unauthorized")
+    }
+    return res.json()
+  })
 
 export function StatusPage() {
+  const user = useUser()
+
   // Demo mode state
   const [isDemoMode, setIsDemoMode] = useState(false)
   const [demoServices, setDemoServices] = useState<Service[]>([])
 
-  // Fetch services from database
   const {
     data: dbServices,
     error,
     isLoading,
-  } = useSWR<Service[]>("/api/services", fetcher, {
+  } = useSWR<Service[]>(user && !isDemoMode ? "/api/services" : null, fetcher, {
     refreshInterval: 30000, // Auto-refresh every 30 seconds
   })
 
@@ -236,6 +246,8 @@ export function StatusPage() {
   // Group services by category
   const categories = [...new Set(services.map((s) => s.category || "Uncategorized"))]
 
+  const canAddService = user || isDemoMode
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Demo Mode Banner */}
@@ -250,7 +262,9 @@ export function StatusPage() {
               <p className="text-muted-foreground font-mono mt-1">Real-time health monitoring dashboard</p>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <UserMenu />
+
               <ColorPicker />
 
               {!isDemoMode && (
@@ -274,16 +288,18 @@ export function StatusPage() {
                 {isRefreshing ? "Checking..." : "Refresh"}
               </Button>
 
-              <Button
-                onClick={() => {
-                  setEditingService(undefined)
-                  setShowServiceForm(true)
-                }}
-                className="border-2 border-black shadow-[4px_4px_0px_0px_#000] hover:shadow-[6px_6px_0px_0px_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Service
-              </Button>
+              {canAddService && (
+                <Button
+                  onClick={() => {
+                    setEditingService(undefined)
+                    setShowServiceForm(true)
+                  }}
+                  className="border-2 border-black shadow-[4px_4px_0px_0px_#000] hover:shadow-[6px_6px_0px_0px_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Service
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -292,7 +308,7 @@ export function StatusPage() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8 space-y-8 flex-1">
         {/* Loading State */}
-        {isLoading && !isDemoMode && (
+        {isLoading && !isDemoMode && user && (
           <div className="border-4 border-black p-12 text-center bg-card shadow-[8px_8px_0px_0px_#000]">
             <RefreshCw className="w-12 h-12 animate-spin mx-auto mb-4" />
             <h3 className="text-2xl font-black uppercase">Loading Services...</h3>
@@ -314,12 +330,38 @@ export function StatusPage() {
           </div>
         )}
 
-        {/* Status Overview */}
-        {!isLoading && !error && <StatusOverview services={services} />}
+        {!user && !isDemoMode && (
+          <div className="border-4 border-black p-12 text-center bg-card shadow-[8px_8px_0px_0px_#000]">
+            <div className="text-6xl mb-4">🔐</div>
+            <h3 className="text-2xl font-black uppercase mb-2">Sign In Required</h3>
+            <p className="text-muted-foreground mb-6">
+              Sign in to create and manage your own services, or try the demo mode to explore.
+            </p>
+            <div className="flex justify-center gap-4 flex-wrap">
+              <Button
+                variant="outline"
+                onClick={enterDemoMode}
+                className="border-2 border-black shadow-[4px_4px_0px_0px_#000] hover:shadow-[6px_6px_0px_0px_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all bg-amber-100 hover:bg-amber-200"
+              >
+                <Play className="w-4 h-4 mr-2" />
+                Try Demo Mode
+              </Button>
+              <Link href="/handler/sign-in">
+                <Button className="border-2 border-black shadow-[4px_4px_0px_0px_#000] hover:shadow-[6px_6px_0px_0px_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all bg-primary text-primary-foreground">
+                  Sign In
+                </Button>
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Status Overview - show when logged in or in demo mode */}
+        {!isLoading && !error && (user || isDemoMode) && <StatusOverview services={services} />}
 
         {/* Services by Category */}
         {!isLoading &&
           !error &&
+          (user || isDemoMode) &&
           categories.map((category) => (
             <div key={category} className="space-y-4">
               <div className="flex items-center gap-4">
@@ -348,34 +390,26 @@ export function StatusPage() {
             </div>
           ))}
 
-        {/* Empty State */}
-        {!isLoading && !error && services.length === 0 && (
+        {/* Empty State - show when logged in but no services */}
+        {!isLoading && !error && (user || isDemoMode) && services.length === 0 && (
           <div className="border-4 border-dashed border-black p-12 text-center">
             <div className="text-6xl mb-4">📡</div>
             <h3 className="text-2xl font-black uppercase mb-2">No Services Configured</h3>
             <p className="text-muted-foreground mb-6">
-              Add your first service to start monitoring, or try the demo to explore.
+              {isDemoMode
+                ? "Add your first service to start monitoring in demo mode."
+                : "Add your first service to start monitoring."}
             </p>
-            <div className="flex justify-center gap-4 flex-wrap">
-              <Button
-                variant="outline"
-                onClick={enterDemoMode}
-                className="border-2 border-black shadow-[4px_4px_0px_0px_#000] hover:shadow-[6px_6px_0px_0px_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all bg-amber-100 hover:bg-amber-200"
-              >
-                <Play className="w-4 h-4 mr-2" />
-                Try Demo Mode
-              </Button>
-              <Button
-                onClick={() => {
-                  setEditingService(undefined)
-                  setShowServiceForm(true)
-                }}
-                className="border-2 border-black shadow-[4px_4px_0px_0px_#000] hover:shadow-[6px_6px_0px_0px_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all bg-primary text-primary-foreground"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Your First Service
-              </Button>
-            </div>
+            <Button
+              onClick={() => {
+                setEditingService(undefined)
+                setShowServiceForm(true)
+              }}
+              className="border-2 border-black shadow-[4px_4px_0px_0px_#000] hover:shadow-[6px_6px_0px_0px_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all bg-primary text-primary-foreground"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Your First Service
+            </Button>
           </div>
         )}
       </main>

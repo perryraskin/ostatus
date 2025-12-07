@@ -1,12 +1,25 @@
 import { sql } from "@/lib/db"
 import { NextResponse } from "next/server"
+import { stackServerApp } from "@/stack"
 
 // PUT update endpoint status (for health check results)
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const user = await stackServerApp.getUser()
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const { id } = await params
     const body = await request.json()
     const { status, responseTime, errorMessage, serviceId } = body
+
+    if (serviceId) {
+      const serviceCheck = await sql`SELECT id FROM services WHERE id = ${serviceId} AND user_id = ${user.id}`
+      if (serviceCheck.length === 0) {
+        return NextResponse.json({ error: "Service not found or unauthorized" }, { status: 404 })
+      }
+    }
 
     await sql`
       UPDATE endpoints 

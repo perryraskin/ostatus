@@ -1,9 +1,15 @@
 import { sql } from "@/lib/db"
 import { NextResponse } from "next/server"
+import { stackServerApp } from "@/stack"
 
 // POST create a new endpoint
 export async function POST(request: Request) {
   try {
+    const user = await stackServerApp.getUser()
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const body = await request.json()
     const {
       id,
@@ -18,6 +24,11 @@ export async function POST(request: Request) {
       successCriteria,
       failureCriteria,
     } = body
+
+    const serviceCheck = await sql`SELECT id FROM services WHERE id = ${serviceId} AND user_id = ${user.id}`
+    if (serviceCheck.length === 0) {
+      return NextResponse.json({ error: "Service not found or unauthorized" }, { status: 404 })
+    }
 
     await sql`
       INSERT INTO endpoints (

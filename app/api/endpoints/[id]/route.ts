@@ -1,13 +1,24 @@
 import { sql } from "@/lib/db"
 import { NextResponse } from "next/server"
+import { stackServerApp } from "@/stack"
 
 // PUT update an endpoint
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const user = await stackServerApp.getUser()
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const { id } = await params
     const body = await request.json()
     const { serviceId, name, url, method, headers, requestBody, interval, timeout, successCriteria, failureCriteria } =
       body
+
+    const serviceCheck = await sql`SELECT id FROM services WHERE id = ${serviceId} AND user_id = ${user.id}`
+    if (serviceCheck.length === 0) {
+      return NextResponse.json({ error: "Service not found or unauthorized" }, { status: 404 })
+    }
 
     await sql`
       UPDATE endpoints 
@@ -37,9 +48,21 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 // DELETE an endpoint
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const user = await stackServerApp.getUser()
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const { id } = await params
     const url = new URL(request.url)
     const serviceId = url.searchParams.get("serviceId")
+
+    if (serviceId) {
+      const serviceCheck = await sql`SELECT id FROM services WHERE id = ${serviceId} AND user_id = ${user.id}`
+      if (serviceCheck.length === 0) {
+        return NextResponse.json({ error: "Service not found or unauthorized" }, { status: 404 })
+      }
+    }
 
     await sql`DELETE FROM endpoints WHERE id = ${id}`
 
