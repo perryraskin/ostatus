@@ -18,13 +18,21 @@ export async function GET() {
             json_build_object(
               'id', e.id,
               'name', e.name,
-              'description', e.description,
+              'monitoringType', COALESCE(e.monitoring_type, 'pull'),
               'pushToken', e.push_token,
-              'expectedInterval', COALESCE(e.expected_interval, 60),
+              'url', e.url,
+              'method', e.method,
+              'headers', e.headers,
+              'body', e.body,
+              'interval', e.interval_seconds,
+              'timeout', e.timeout_ms,
               'gracePeriod', COALESCE(e.grace_period, 60),
+              'successCriteria', e.success_criteria,
+              'failureCriteria', e.failure_criteria,
               'status', e.status,
-              'isDegraded', COALESCE(e.is_degraded, false),
+              'responseTime', e.response_time,
               'errorMessage', e.error_message,
+              'lastCheck', e.last_check,
               'lastPing', e.last_ping
             )
           ) FILTER (WHERE e.id IS NOT NULL),
@@ -37,52 +45,15 @@ export async function GET() {
       ORDER BY s.created_at DESC
     `
 
-    // Calculate real-time status based on timeouts
-    const now = new Date()
-    const formattedServices = services.map((s) => {
-      const endpoints = (s.endpoints || []).map((e: Record<string, unknown>) => {
-        // Check if endpoint is timed out
-        let status = e.status as string
-        let errorMessage = e.errorMessage as string | null
-
-        if (e.lastPing) {
-          const lastPing = new Date(e.lastPing as string)
-          const expectedInterval = (e.expectedInterval as number) || 60
-          const gracePeriod = (e.gracePeriod as number) || 60
-          const timeoutMs = (expectedInterval + gracePeriod) * 1000
-          const elapsed = now.getTime() - lastPing.getTime()
-
-          if (elapsed > timeoutMs) {
-            status = "outage"
-            errorMessage = `No ping received for ${Math.floor(elapsed / 1000)}s (timeout: ${expectedInterval + gracePeriod}s)`
-          }
-        } else {
-          status = "unknown"
-          errorMessage = "Waiting for first ping"
-        }
-
-        return { ...e, status, errorMessage }
-      })
-
-      // Calculate aggregated status
-      let aggregatedStatus = "unknown"
-      if (endpoints.length > 0) {
-        const statuses = endpoints.map((e: Record<string, unknown>) => e.status)
-        if (statuses.every((st: string) => st === "operational")) aggregatedStatus = "operational"
-        else if (statuses.some((st: string) => st === "outage")) aggregatedStatus = "outage"
-        else if (statuses.some((st: string) => st === "degraded")) aggregatedStatus = "degraded"
-      }
-
-      return {
-        id: s.id,
-        name: s.name,
-        description: s.description || "",
-        category: s.category || "Uncategorized",
-        aggregatedStatus,
-        lastUpdated: s.last_updated,
-        endpoints,
-      }
-    })
+    const formattedServices = services.map((s) => ({
+      id: s.id,
+      name: s.name,
+      description: s.description || "",
+      category: s.category || "Uncategorized",
+      aggregatedStatus: s.aggregated_status,
+      lastUpdated: s.last_updated,
+      endpoints: s.endpoints || [],
+    }))
 
     return NextResponse.json(formattedServices)
   } catch (error) {

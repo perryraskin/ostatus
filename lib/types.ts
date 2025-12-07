@@ -1,18 +1,32 @@
 export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD"
 
+export type MonitoringType = "pull" | "push"
+
+export type ResponseCriteria = {
+  type: "status_code" | "response_body" | "response_time" | "json_field"
+  operator: "equals" | "contains" | "not_contains" | "greater_than" | "less_than" | "regex"
+  value: string
+}
+
 export type HealthCheckEndpoint = {
   id: string
   name: string
-  description?: string
-  // Push-specific fields
-  pushToken: string // Unique token for this endpoint
-  expectedInterval: number // How often we expect a ping (in seconds)
-  gracePeriod: number // Extra time before marking as outage (in seconds)
-  // Status tracking
-  lastPing?: Date
+  monitoringType: MonitoringType
+  pushToken?: string // Unique token for push endpoints
+  url: string
+  method: HttpMethod
+  headers?: Record<string, string>
+  body?: string
+  interval: number // in seconds (for pull: check interval, for push: expected ping interval)
+  timeout: number // in milliseconds
+  gracePeriod?: number // seconds after interval before marking as outage (for push)
+  successCriteria: ResponseCriteria[]
+  failureCriteria: ResponseCriteria[]
+  lastCheck?: Date
+  lastPing?: Date // For push endpoints - when we last received a ping
   status?: "operational" | "degraded" | "outage" | "unknown"
-  errorMessage?: string // Error message from the service
-  isDegraded?: boolean // Whether service reported degraded state
+  responseTime?: number
+  errorMessage?: string
 }
 
 export type Service = {
@@ -25,17 +39,13 @@ export type Service = {
   lastUpdated: Date
 }
 
-export type PushStatusPayload = {
-  status?: "ok" | "degraded" | "error" // Optional - defaults to "ok"
-  message?: string // Optional error/status message
-  metadata?: Record<string, unknown> // Optional additional data
-}
-
 export type HealthCheckResult = {
   endpointId: string
   timestamp: Date
   status: "success" | "failure"
-  message?: string
+  responseTime: number
+  statusCode?: number
+  errorMessage?: string
 }
 
 export type PublicPage = {
