@@ -1,27 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
 import { sql } from "@/lib/db"
+import { VercelCore as Vercel } from "@vercel/sdk/core.js"
+import { projectsGetProjectDomain } from "@vercel/sdk/funcs/projectsGetProjectDomain.js"
+import { projectsAddProjectDomain } from "@vercel/sdk/funcs/projectsAddProjectDomain.js"
+import { projectsRemoveProjectDomain } from "@vercel/sdk/funcs/projectsRemoveProjectDomain.js"
 
 const VERCEL_TOKEN = process.env.VERCEL_TOKEN
 const VERCEL_PROJECT_ID = process.env.VERCEL_PROJECT_ID
 const VERCEL_TEAM_ID = process.env.VERCEL_TEAM_ID
 
-async function vercelFetch(endpoint: string, options: RequestInit = {}) {
-  const url = new URL(`https://api.vercel.com${endpoint}`)
-  if (VERCEL_TEAM_ID) {
-    url.searchParams.set("teamId", VERCEL_TEAM_ID)
-  }
-
-  const response = await fetch(url.toString(), {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${VERCEL_TOKEN}`,
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-
-  return response
+function getVercelClient() {
+  if (!VERCEL_TOKEN) return null
+  return new Vercel({ bearerToken: VERCEL_TOKEN })
 }
 
 // Add a custom domain
@@ -32,7 +23,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (!VERCEL_TOKEN || !VERCEL_PROJECT_ID) {
+    const vercel = getVercelClient()
+    if (!vercel || !VERCEL_PROJECT_ID) {
       return NextResponse.json(
         { error: "Vercel API not configured. Please add VERCEL_TOKEN and VERCEL_PROJECT_ID environment variables." },
         { status: 500 },
@@ -57,44 +49,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Page not found or unauthorized" }, { status: 404 })
     }
 
-    // Add domain to Vercel project
-    const addResponse = await vercelFetch(`/v10/projects/${VERCEL_PROJECT_ID}/domains`, {
-      method: "POST",
-      body: JSON.stringify({ name: domain }),
-    })
-
-    const addResult = await addResponse.json()
-
-    if (!addResponse.ok) {
-      // Check if domain already exists (not necessarily an error)
-      if (addResult.error?.code === "domain_already_exists") {
-        // Domain exists, check if it's verified
-        const configResponse = await vercelFetch(`/v6/domains/${domain}/config`)
-        const configResult = await configResponse.json()
-
-        await sql`
-          UPDATE public_pages 
-          SET custom_domain = ${domain},
-              domain_verified = ${configResult.configured || false},
-              domain_verification_error = ${configResult.configured ? null : "Domain not yet configured. Please add the DNS records."}
-          WHERE id = ${pageId}
-        `
-
-        return NextResponse.json({
-          success: true,
-          domain,
-          verified: configResult.configured || false,
-          message: configResult.configured ? "Domain is configured" : "Domain added. Please configure DNS records.",
-        })
+    try {
+      await projectsAddProjectDomain(vercel, {
+        idOrName: VERCEL_PROJECT_ID,
+        teamId: VERCEL_TEAM_ID || undefined,
+        requestBody: { name: domain },
+      })
+    } catch (addError: any) {
+      // Domain might already exist, which is fine - we'll check verification status
+      if (!addError.message?.includes("already exists") && !addError.message?.includes("DOMAIN_ALREADY_EXISTS")) {
+        return NextResponse.json({ error: addError.message || "Failed to add domain" }, { status: 400 })
       }
-
-      return NextResponse.json(
-        { error: addResult.error?.message || "Failed to add domain" },
-        { status: addResponse.status },
-      )
     }
 
-    // Update public page with domain info
+    // Update public page with domain info (initially not verified)
     await sql`
       UPDATE public_pages 
       SET custom_domain = ${domain},
@@ -107,7 +75,6 @@ export async function POST(request: NextRequest) {
       success: true,
       domain,
       verified: false,
-      verification: addResult.verification,
       message: "Domain added. Please configure your DNS records.",
     })
   } catch (error) {
@@ -124,7 +91,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (!VERCEL_TOKEN || !VERCEL_PROJECT_ID) {
+    const vercel = getVercelClient()
+    if (!vercel || !VERCEL_PROJECT_ID) {
       return NextResponse.json({ error: "Vercel API not configured" }, { status: 500 })
     }
 
@@ -135,43 +103,43 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Domain is required" }, { status: 400 })
     }
 
-    const projectDomainsResponse = await vercelFetch(`/v9/projects/${VERCEL_PROJECT_ID}/domains`)
-    const projectDomainsResult = await projectDomainsResponse.json()
+    try {
+      const domainResponse = await projectsGetProjectDomain(vercel, {
+        idOrName: VERCEL_PROJECT_ID,
+        teamId: VERCEL_TEAM_ID || undefined,
+        domain,
+      })
 
-    let domainInfo = null
-    if (projectDomainsResult.domains) {
-      domainInfo = projectDomainsResult.domains.find((d: any) => d.name === domain)
+      const isVerified = domainResponse.verified === true
+
+      // Update verification status in database
+      if (isVerified) {
+        await sql`
+          UPDATE public_pages 
+          SET domain_verified = TRUE,
+              domain_verification_error = NULL
+          WHERE custom_domain = ${domain}
+        `
+      } else {
+        await sql`
+          UPDATE public_pages 
+          SET domain_verified = FALSE,
+              domain_verification_error = 'Pending DNS verification. Please add CNAME record pointing to cname.vercel-dns.com'
+          WHERE custom_domain = ${domain}
+        `
+      }
+
+      return NextResponse.json({
+        verified: isVerified,
+        verification: domainResponse.verification || null,
+      })
+    } catch (error: any) {
+      // Domain not found in project
+      return NextResponse.json({
+        verified: false,
+        error: "Domain not found in project",
+      })
     }
-
-    // Also get config for DNS details
-    const configResponse = await vercelFetch(`/v6/domains/${domain}/config`)
-    const configResult = await configResponse.json()
-
-    // Domain is verified if it exists in project and is not misconfigured
-    const isVerified =
-      domainInfo?.verified === true ||
-      configResult.configured === true ||
-      (configResult.misconfigured === false && !configResult.conflicts?.length)
-
-    // Update verification status in database
-    if (isVerified) {
-      await sql`
-        UPDATE public_pages 
-        SET domain_verified = TRUE,
-            domain_verification_error = NULL
-        WHERE custom_domain = ${domain}
-      `
-    }
-
-    return NextResponse.json({
-      verified: isVerified,
-      misconfigured: configResult.misconfigured || false,
-      cnames: configResult.cnames || [],
-      aValues: configResult.aValues || [],
-      conflicts: configResult.conflicts || [],
-      // Include raw info for debugging
-      domainInfo: domainInfo ? { verified: domainInfo.verified, configured: domainInfo.configured } : null,
-    })
   } catch (error) {
     console.error("Error checking domain:", error)
     return NextResponse.json({ error: "Failed to check domain" }, { status: 500 })
@@ -186,7 +154,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (!VERCEL_TOKEN || !VERCEL_PROJECT_ID) {
+    const vercel = getVercelClient()
+    if (!vercel || !VERCEL_PROJECT_ID) {
       return NextResponse.json({ error: "Vercel API not configured" }, { status: 500 })
     }
 
@@ -210,10 +179,15 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Page not found or unauthorized" }, { status: 404 })
     }
 
-    // Remove domain from Vercel project
-    await vercelFetch(`/v9/projects/${VERCEL_PROJECT_ID}/domains/${domain}`, {
-      method: "DELETE",
-    })
+    try {
+      await projectsRemoveProjectDomain(vercel, {
+        idOrName: VERCEL_PROJECT_ID,
+        teamId: VERCEL_TEAM_ID || undefined,
+        domain,
+      })
+    } catch (error) {
+      // Ignore errors if domain doesn't exist
+    }
 
     // Clear domain from public page
     await sql`
