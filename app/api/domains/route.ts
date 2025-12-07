@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (!VERCEL_TOKEN) {
+    if (!VERCEL_TOKEN || !VERCEL_PROJECT_ID) {
       return NextResponse.json({ error: "Vercel API not configured" }, { status: 500 })
     }
 
@@ -135,19 +135,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Domain is required" }, { status: 400 })
     }
 
-    // Get domain configuration status from Vercel
+    const projectDomainsResponse = await vercelFetch(`/v9/projects/${VERCEL_PROJECT_ID}/domains`)
+    const projectDomainsResult = await projectDomainsResponse.json()
+
+    let domainInfo = null
+    if (projectDomainsResult.domains) {
+      domainInfo = projectDomainsResult.domains.find((d: any) => d.name === domain)
+    }
+
+    // Also get config for DNS details
     const configResponse = await vercelFetch(`/v6/domains/${domain}/config`)
     const configResult = await configResponse.json()
 
-    if (!configResponse.ok) {
-      return NextResponse.json({
-        verified: false,
-        error: configResult.error?.message || "Domain not found",
-      })
-    }
+    // Domain is verified if it exists in project and is not misconfigured
+    const isVerified =
+      domainInfo?.verified === true ||
+      configResult.configured === true ||
+      (configResult.misconfigured === false && !configResult.conflicts?.length)
 
     // Update verification status in database
-    if (configResult.configured) {
+    if (isVerified) {
       await sql`
         UPDATE public_pages 
         SET domain_verified = TRUE,
@@ -157,11 +164,13 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      verified: configResult.configured || false,
+      verified: isVerified,
       misconfigured: configResult.misconfigured || false,
       cnames: configResult.cnames || [],
       aValues: configResult.aValues || [],
       conflicts: configResult.conflicts || [],
+      // Include raw info for debugging
+      domainInfo: domainInfo ? { verified: domainInfo.verified, configured: domainInfo.configured } : null,
     })
   } catch (error) {
     console.error("Error checking domain:", error)
