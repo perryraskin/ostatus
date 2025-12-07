@@ -47,3 +47,18 @@ export type HealthCheckResult = {
   statusCode?: number
   errorMessage?: string
 }
+
+export type PublicPage = {
+  id: string
+  slug: string
+  title: string
+  description: string
+  logoUrl?: string
+  customDomain?: string
+  serviceIds: string[]
+  isPublished: boolean
+  showEndpointDetails: boolean
+  primaryColor: string
+  createdAt: Date
+  updatedAt: Date
+}

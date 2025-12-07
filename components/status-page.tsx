@@ -12,6 +12,7 @@ import { EndpointForm } from "./endpoint-form"
 import { ColorPicker } from "./color-picker"
 import { DemoModeBanner } from "./demo-mode-banner"
 import { UserMenu } from "./user-menu"
+import { PublicPagesManager } from "./public-pages-manager"
 import { Button } from "@/components/ui/button"
 import { Plus, RefreshCw, Play } from "lucide-react"
 import Link from "next/link"
@@ -357,6 +358,9 @@ export function StatusPage() {
 
         {/* Status Overview - show when logged in or in demo mode */}
         {!isLoading && !error && (user || isDemoMode) && <StatusOverview services={services} />}
+
+        {/* Public Pages Manager - only for logged in users */}
+        {!isLoading && !error && user && !isDemoMode && <PublicPagesManager services={services} />}
 
         {/* Services by Category */}
         {!isLoading &&
