@@ -41,15 +41,13 @@ export function ServiceForm({ service, onSave, onCancel }: ServiceFormProps) {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-card border-4 border-black shadow-[8px_8px_0px_0px_#000] w-full max-w-lg">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b-4 border-black bg-accent">
-          <h2 className="text-xl font-black uppercase text-accent-foreground">
-            {service ? "Edit Service" : "Add New Service"}
-          </h2>
+        <div className="flex items-center justify-between p-4 border-b-4 border-black bg-muted">
+          <h2 className="text-xl font-black uppercase">{service ? "Edit Service" : "Add New Service"}</h2>
           <Button
             variant="ghost"
             size="sm"
             onClick={onCancel}
-            className="h-8 w-8 p-0 border-2 border-black bg-card hover:bg-primary hover:text-primary-foreground"
+            className="h-8 w-8 p-0 border-2 border-black bg-card hover:bg-black hover:text-white"
           >
             <X className="w-4 h-4" />
           </Button>
@@ -109,7 +107,7 @@ export function ServiceForm({ service, onSave, onCancel }: ServiceFormProps) {
             </Button>
             <Button
               type="submit"
-              className="flex-1 border-2 border-black shadow-[4px_4px_0px_0px_#000] hover:shadow-[6px_6px_0px_0px_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all bg-[#00cc00] text-black hover:bg-[#00cc00]/90"
+              className="flex-1 border-2 border-black shadow-[4px_4px_0px_0px_#000] hover:shadow-[6px_6px_0px_0px_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {service ? "Update" : "Create"} Service
             </Button>

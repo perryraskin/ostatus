@@ -97,15 +97,13 @@ export function EndpointForm({ endpoint, onSave, onCancel }: EndpointFormProps) 
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-card border-4 border-black shadow-[8px_8px_0px_0px_#000] w-full max-w-2xl my-8">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b-4 border-black bg-secondary">
-          <h2 className="text-xl font-black uppercase text-secondary-foreground">
-            {endpoint ? "Edit Endpoint" : "Add Health Check Endpoint"}
-          </h2>
+        <div className="flex items-center justify-between p-4 border-b-4 border-black bg-muted">
+          <h2 className="text-xl font-black uppercase">{endpoint ? "Edit Endpoint" : "Add Health Check Endpoint"}</h2>
           <Button
             variant="ghost"
             size="sm"
             onClick={onCancel}
-            className="h-8 w-8 p-0 border-2 border-black bg-card hover:bg-primary hover:text-primary-foreground"
+            className="h-8 w-8 p-0 border-2 border-black bg-card hover:bg-black hover:text-white"
           >
             <X className="w-4 h-4" />
           </Button>
@@ -229,13 +227,13 @@ export function EndpointForm({ endpoint, onSave, onCancel }: EndpointFormProps) 
           {/* Success Criteria */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label className="font-bold uppercase text-[#00cc00]">Success Criteria</Label>
+              <Label className="font-bold uppercase text-emerald-600">Success Criteria</Label>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => addCriteria("success")}
-                className="border-2 border-black bg-[#00cc00]/20 hover:bg-[#00cc00]/40"
+                className="border-2 border-black bg-emerald-100 hover:bg-emerald-200"
               >
                 <Plus className="w-4 h-4 mr-1" />
                 Add
@@ -255,13 +253,13 @@ export function EndpointForm({ endpoint, onSave, onCancel }: EndpointFormProps) 
           {/* Failure Criteria */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label className="font-bold uppercase text-primary">Failure Criteria</Label>
+              <Label className="font-bold uppercase text-red-600">Failure Criteria</Label>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => addCriteria("failure")}
-                className="border-2 border-black bg-primary/20 hover:bg-primary/40"
+                className="border-2 border-black bg-red-100 hover:bg-red-200"
               >
                 <Plus className="w-4 h-4 mr-1" />
                 Add
@@ -290,7 +288,7 @@ export function EndpointForm({ endpoint, onSave, onCancel }: EndpointFormProps) 
             </Button>
             <Button
               type="submit"
-              className="flex-1 border-2 border-black shadow-[4px_4px_0px_0px_#000] hover:shadow-[6px_6px_0px_0px_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all bg-accent text-accent-foreground hover:bg-accent/90"
+              className="flex-1 border-2 border-black shadow-[4px_4px_0px_0px_#000] hover:shadow-[6px_6px_0px_0px_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {endpoint ? "Update" : "Create"} Endpoint
             </Button>
@@ -316,7 +314,7 @@ function CriteriaRow({
     <div
       className={cn(
         "grid grid-cols-[1fr_1fr_1fr_auto] gap-2 p-2 border-2 border-black",
-        variant === "success" ? "bg-[#00cc00]/10" : "bg-primary/10",
+        variant === "success" ? "bg-emerald-50" : "bg-red-50",
       )}
     >
       <Select value={criteria.type} onValueChange={(v) => onUpdate("type", v)}>
@@ -357,7 +355,7 @@ function CriteriaRow({
         variant="ghost"
         size="sm"
         onClick={onRemove}
-        className="h-9 w-9 p-0 border-2 border-black hover:bg-primary hover:text-primary-foreground"
+        className="h-9 w-9 p-0 border-2 border-black hover:bg-red-200"
       >
         <Trash2 className="w-4 h-4" />
       </Button>
