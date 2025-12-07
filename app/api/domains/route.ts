@@ -2,9 +2,9 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
 import { sql } from "@/lib/db"
 import { VercelCore as Vercel } from "@vercel/sdk/core.js"
-import { projectsGetProjectDomain } from "@vercel/sdk/funcs/projectsGetProjectDomain.js"
 import { projectsAddProjectDomain } from "@vercel/sdk/funcs/projectsAddProjectDomain.js"
 import { projectsRemoveProjectDomain } from "@vercel/sdk/funcs/projectsRemoveProjectDomain.js"
+import { projectsVerifyProjectDomain } from "@vercel/sdk/funcs/projectsVerifyProjectDomain.js"
 
 const VERCEL_TOKEN = process.env.VERCEL_TOKEN
 const VERCEL_PROJECT_ID = process.env.VERCEL_PROJECT_ID
@@ -104,13 +104,13 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      const domainResponse = await projectsGetProjectDomain(vercel, {
+      const verifyResponse = await projectsVerifyProjectDomain(vercel, {
         idOrName: VERCEL_PROJECT_ID,
         teamId: VERCEL_TEAM_ID || undefined,
         domain,
       })
 
-      const isVerified = domainResponse.verified === true
+      const isVerified = verifyResponse.verified === true
 
       // Update verification status in database
       if (isVerified) {
@@ -121,23 +121,27 @@ export async function GET(request: NextRequest) {
           WHERE custom_domain = ${domain}
         `
       } else {
+        const verificationInfo = verifyResponse.verification
+          ? `Verification required: ${verifyResponse.verification.map((v: any) => `${v.type} record for ${v.domain} with value ${v.value}`).join(", ")}`
+          : "Pending DNS verification. Please add CNAME record pointing to cname.vercel-dns.com"
+
         await sql`
           UPDATE public_pages 
           SET domain_verified = FALSE,
-              domain_verification_error = 'Pending DNS verification. Please add CNAME record pointing to cname.vercel-dns.com'
+              domain_verification_error = ${verificationInfo}
           WHERE custom_domain = ${domain}
         `
       }
 
       return NextResponse.json({
         verified: isVerified,
-        verification: domainResponse.verification || null,
+        verification: verifyResponse.verification || null,
       })
     } catch (error: any) {
       // Domain not found in project
       return NextResponse.json({
         verified: false,
-        error: "Domain not found in project",
+        error: error.message || "Domain not found in project",
       })
     }
   } catch (error) {
