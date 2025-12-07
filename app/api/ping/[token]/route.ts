@@ -9,9 +9,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   const { token } = await params
 
   try {
-    // Find the endpoint with this push token
     const endpoints = await sql`
-      SELECT id, service_id, name, interval, grace_period 
+      SELECT id, service_id, name, expected_interval, grace_period 
       FROM endpoints 
       WHERE push_token = ${token} AND monitoring_type = 'push'
     `
