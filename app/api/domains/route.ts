@@ -4,6 +4,7 @@ import { sql } from "@/lib/db"
 import { VercelCore as Vercel } from "@vercel/sdk/core.js"
 import { projectsAddProjectDomain } from "@vercel/sdk/funcs/projectsAddProjectDomain.js"
 import { projectsRemoveProjectDomain } from "@vercel/sdk/funcs/projectsRemoveProjectDomain.js"
+import { projectsGetProjectDomain } from "@vercel/sdk/funcs/projectsGetProjectDomain.js"
 import { projectsVerifyProjectDomain } from "@vercel/sdk/funcs/projectsVerifyProjectDomain.js"
 
 const VERCEL_TOKEN = process.env.VERCEL_TOKEN
@@ -104,13 +105,24 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      const verifyResponse = await projectsVerifyProjectDomain(vercel, {
-        idOrName: VERCEL_PROJECT_ID,
-        teamId: VERCEL_TEAM_ID || undefined,
-        domain,
-      })
+      const [domainResponse, verifyResponse] = await Promise.all([
+        projectsGetProjectDomain(vercel, {
+          idOrName: VERCEL_PROJECT_ID,
+          teamId: VERCEL_TEAM_ID || undefined,
+          domain,
+        }),
+        projectsVerifyProjectDomain(vercel, {
+          idOrName: VERCEL_PROJECT_ID,
+          teamId: VERCEL_TEAM_ID || undefined,
+          domain,
+        }),
+      ])
 
-      const isVerified = verifyResponse.verified === true
+      const domainResult = domainResponse.ok ? domainResponse.value : null
+      const verifyResult = verifyResponse.ok ? verifyResponse.value : null
+
+      // Check verified status from verify response (primary) or domain response (fallback)
+      const isVerified = verifyResult?.verified === true || domainResult?.verified === true
 
       // Update verification status in database
       if (isVerified) {
@@ -121,8 +133,10 @@ export async function GET(request: NextRequest) {
           WHERE custom_domain = ${domain}
         `
       } else {
-        const verificationInfo = verifyResponse.verification
-          ? `Verification required: ${verifyResponse.verification.map((v: any) => `${v.type} record for ${v.domain} with value ${v.value}`).join(", ")}`
+        // Get verification challenges from either response
+        const verification = verifyResult?.verification || domainResult?.verification
+        const verificationInfo = verification
+          ? `Add TXT record: ${verification.map((v: any) => `${v.type} record for ${v.domain} with value ${v.value}`).join(", ")}`
           : "Pending DNS verification. Please add CNAME record pointing to cname.vercel-dns.com"
 
         await sql`
@@ -135,7 +149,7 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         verified: isVerified,
-        verification: verifyResponse.verification || null,
+        verification: verifyResult?.verification || domainResult?.verification || null,
       })
     } catch (error: any) {
       // Domain not found in project
