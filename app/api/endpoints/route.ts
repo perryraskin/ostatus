@@ -15,12 +15,15 @@ export async function POST(request: Request) {
       id,
       serviceId,
       name,
+      monitoringType = "pull",
+      pushToken,
       url,
       method,
       headers,
       requestBody,
       interval,
       timeout,
+      gracePeriod = 60,
       successCriteria,
       failureCriteria,
     } = body
@@ -32,14 +35,15 @@ export async function POST(request: Request) {
 
     await sql`
       INSERT INTO endpoints (
-        id, service_id, name, url, method, headers, body, 
-        interval_seconds, timeout_ms, success_criteria, failure_criteria, status
+        id, service_id, name, monitoring_type, push_token, url, method, headers, body, 
+        interval_seconds, timeout_ms, grace_period, success_criteria, failure_criteria, status
       )
       VALUES (
-        ${id}, ${serviceId}, ${name}, ${url}, ${method}, 
+        ${id}, ${serviceId}, ${name}, ${monitoringType}, ${pushToken || null}, 
+        ${url || ""}, ${method}, 
         ${headers ? JSON.stringify(headers) : null}::jsonb, 
         ${requestBody || null},
-        ${interval}, ${timeout}, 
+        ${interval}, ${timeout}, ${gracePeriod},
         ${JSON.stringify(successCriteria || [])}::jsonb, 
         ${JSON.stringify(failureCriteria || [])}::jsonb, 
         'unknown'

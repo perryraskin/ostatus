@@ -4,7 +4,7 @@ import { useState } from "react"
 import type { Service, HealthCheckEndpoint } from "@/lib/types"
 import { StatusBadge, StatusDot } from "./status-badge"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronUp, Settings, Trash2, Plus, Clock, Zap } from "lucide-react"
+import { ChevronDown, ChevronUp, Settings, Trash2, Plus, Clock, Zap, Radio, Copy, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface ServiceCardProps {
@@ -123,6 +123,33 @@ function EndpointRow({
   onEdit: () => void
   onDelete: () => void
 }) {
+  const [copied, setCopied] = useState(false)
+  const isPush = endpoint.monitoringType === "push"
+
+  const copyPingUrl = () => {
+    if (endpoint.pushToken) {
+      const pingUrl = `${window.location.origin}/api/ping/${endpoint.pushToken}`
+      navigator.clipboard.writeText(pingUrl)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const formatLastPing = (lastPing?: Date) => {
+    if (!lastPing) return "Never"
+    const date = new Date(lastPing)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return "Just now"
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    return `${diffDays}d ago`
+  }
+
   return (
     <div className="p-4 hover:bg-muted/50 transition-colors">
       <div className="flex items-center justify-between">
@@ -131,30 +158,75 @@ function EndpointRow({
           <div>
             <div className="flex items-center gap-2">
               <span className="font-bold">{endpoint.name}</span>
-              <span className="px-2 py-0.5 text-xs font-mono font-bold border-2 border-black bg-primary text-primary-foreground">
-                {endpoint.method}
-              </span>
+              {isPush ? (
+                <span className="px-2 py-0.5 text-xs font-mono font-bold border-2 border-black bg-amber-100 text-amber-800 flex items-center gap-1">
+                  <Radio className="w-3 h-3" />
+                  PUSH
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 text-xs font-mono font-bold border-2 border-black bg-primary text-primary-foreground">
+                  {endpoint.method}
+                </span>
+              )}
             </div>
-            <p className="text-sm font-mono text-muted-foreground truncate max-w-md">{endpoint.url}</p>
+            {isPush ? (
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-sm font-mono text-muted-foreground truncate max-w-xs">
+                  /api/ping/{endpoint.pushToken?.substring(0, 8)}...
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    copyPingUrl()
+                  }}
+                  className="h-6 w-6 p-0 border border-black hover:bg-muted"
+                >
+                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                </Button>
+              </div>
+            ) : (
+              <p className="text-sm font-mono text-muted-foreground truncate max-w-md">{endpoint.url}</p>
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Metrics - Fixed status colors */}
+          {/* Metrics - different for push vs pull */}
           <div className="flex items-center gap-4 text-sm">
-            <div className="flex items-center gap-1 font-mono">
-              <Zap className="w-4 h-4" />
-              <span
-                className={cn(
-                  endpoint.responseTime && endpoint.responseTime > 500 ? "text-amber-500" : "text-emerald-500",
-                )}
-              >
-                {endpoint.responseTime ? `${endpoint.responseTime}ms` : "—"}
-              </span>
-            </div>
+            {isPush ? (
+              <div className="flex items-center gap-1 font-mono">
+                <Radio className="w-4 h-4" />
+                <span
+                  className={cn(
+                    endpoint.status === "operational"
+                      ? "text-emerald-500"
+                      : endpoint.status === "degraded"
+                        ? "text-amber-500"
+                        : "text-red-500",
+                  )}
+                >
+                  {formatLastPing(endpoint.lastPing)}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 font-mono">
+                <Zap className="w-4 h-4" />
+                <span
+                  className={cn(
+                    endpoint.responseTime && endpoint.responseTime > 500 ? "text-amber-500" : "text-emerald-500",
+                  )}
+                >
+                  {endpoint.responseTime ? `${endpoint.responseTime}ms` : "—"}
+                </span>
+              </div>
+            )}
             <div className="flex items-center gap-1 font-mono">
               <Clock className="w-4 h-4" />
-              <span>{endpoint.interval}s</span>
+              <span>
+                {endpoint.interval >= 3600 ? `${Math.floor(endpoint.interval / 3600)}h` : `${endpoint.interval}s`}
+              </span>
             </div>
           </div>
 
@@ -180,29 +252,48 @@ function EndpointRow({
         </div>
       </div>
 
-      {/* Error Message - Uses red for errors, not primary */}
+      {/* Error Message */}
       {endpoint.errorMessage && (
         <div className="mt-2 p-2 bg-red-500/10 border-2 border-red-500 text-sm font-mono text-red-700">
           {endpoint.errorMessage}
         </div>
       )}
 
-      {/* Criteria Summary - Success uses green, failure uses red */}
-      <div className="mt-2 flex flex-wrap gap-2">
-        {endpoint.successCriteria.map((criteria, idx) => (
-          <span
-            key={idx}
-            className="px-2 py-0.5 text-xs font-mono bg-emerald-500/20 border border-emerald-500 text-emerald-700"
-          >
-            ✓ {criteria.type}: {criteria.operator} {criteria.value}
+      {/* Criteria Summary - only for pull endpoints */}
+      {!isPush && (endpoint.successCriteria?.length > 0 || endpoint.failureCriteria?.length > 0) && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {endpoint.successCriteria?.map((criteria, idx) => (
+            <span
+              key={idx}
+              className="px-2 py-0.5 text-xs font-mono bg-emerald-500/20 border border-emerald-500 text-emerald-700"
+            >
+              ✓ {criteria.type}: {criteria.operator} {criteria.value}
+            </span>
+          ))}
+          {endpoint.failureCriteria?.map((criteria, idx) => (
+            <span key={idx} className="px-2 py-0.5 text-xs font-mono bg-red-500/20 border border-red-500 text-red-700">
+              ✗ {criteria.type}: {criteria.operator} {criteria.value}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {isPush && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          <span className="px-2 py-0.5 text-xs font-mono bg-muted border border-black">
+            Expected every{" "}
+            {endpoint.interval >= 3600 ? `${Math.floor(endpoint.interval / 3600)}h` : `${endpoint.interval}s`}
           </span>
-        ))}
-        {endpoint.failureCriteria.map((criteria, idx) => (
-          <span key={idx} className="px-2 py-0.5 text-xs font-mono bg-red-500/20 border border-red-500 text-red-700">
-            ✗ {criteria.type}: {criteria.operator} {criteria.value}
-          </span>
-        ))}
-      </div>
+          {endpoint.gracePeriod && (
+            <span className="px-2 py-0.5 text-xs font-mono bg-muted border border-black">
+              Grace:{" "}
+              {endpoint.gracePeriod >= 3600
+                ? `${Math.floor(endpoint.gracePeriod / 3600)}h`
+                : `${endpoint.gracePeriod}s`}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }

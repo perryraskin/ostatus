@@ -18,18 +18,22 @@ export async function GET() {
             json_build_object(
               'id', e.id,
               'name', e.name,
+              'monitoringType', COALESCE(e.monitoring_type, 'pull'),
+              'pushToken', e.push_token,
               'url', e.url,
               'method', e.method,
               'headers', e.headers,
               'body', e.body,
               'interval', e.interval_seconds,
               'timeout', e.timeout_ms,
+              'gracePeriod', COALESCE(e.grace_period, 60),
               'successCriteria', e.success_criteria,
               'failureCriteria', e.failure_criteria,
               'status', e.status,
               'responseTime', e.response_time,
               'errorMessage', e.error_message,
-              'lastCheck', e.last_check
+              'lastCheck', e.last_check,
+              'lastPing', e.last_ping
             )
           ) FILTER (WHERE e.id IS NOT NULL),
           '[]'

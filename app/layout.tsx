@@ -11,6 +11,7 @@ const spaceMono = Space_Mono({
   weight: ["400", "700"],
   subsets: ["latin"],
 })
+
 import { DM_Sans, Space_Mono, DM_Sans as V0_Font_DM_Sans, Space_Mono as V0_Font_Space_Mono, Source_Serif_4 as V0_Font_Source_Serif_4 } from 'next/font/google'
 
 // Initialize fonts
