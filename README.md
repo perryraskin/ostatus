@@ -57,6 +57,11 @@ NEXT_PUBLIC_STACK_PROJECT_ID=your_stack_project_id
 NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY=your_stack_key
 STACK_SECRET_SERVER_KEY=your_stack_secret
 WORKER_SECRET=your_optional_worker_secret
+
+# Custom Domain Support (required for multi-tenant custom domains)
+VERCEL_TOKEN=your_vercel_api_token
+VERCEL_PROJECT_ID=your_vercel_project_id
+VERCEL_TEAM_ID=your_vercel_team_id  # Optional, only for team projects
 \`\`\`
 
 ### Database Setup
@@ -78,6 +83,9 @@ psql $DATABASE_URL -f scripts/004-add-public-pages.sql
 
 # If restoring from push-only version
 psql $DATABASE_URL -f scripts/006-restore-full-schema.sql
+
+# Add custom domain verification
+psql $DATABASE_URL -f scripts/007-add-domain-verification.sql
 \`\`\`
 
 ## Health Check Worker
@@ -143,6 +151,44 @@ curl -X POST https://your-app.vercel.app/api/ping/YOUR_PUSH_TOKEN \
 Access at: `https://your-app.vercel.app/status/YOUR_PAGE_SLUG`
 
 For custom domains, set up a CNAME record pointing to your app.
+
+## Custom Domain Setup
+
+OStatus supports multi-tenant custom domains, allowing your users to point their own domains to their status pages.
+
+### Prerequisites
+
+1. **Create a Vercel API Token:**
+   - Go to https://vercel.com/account/tokens
+   - Create a new token with full access
+   - Add as `VERCEL_TOKEN` environment variable
+
+2. **Get your Vercel Project ID:**
+   - Go to your project in Vercel Dashboard
+   - Settings → General → Project ID
+   - Add as `VERCEL_PROJECT_ID` environment variable
+
+3. **Team ID (optional):**
+   - If using a team project, add `VERCEL_TEAM_ID`
+
+### How It Works
+
+1. Users create a public status page
+2. In the page settings, they enter their custom domain (e.g., `status.example.com`)
+3. OStatus automatically registers the domain with Vercel via API
+4. Users add a CNAME record: `status` → `cname.vercel-dns.com`
+5. Once DNS propagates, the domain is verified and SSL is auto-provisioned
+6. Traffic to `status.example.com` is routed to their status page
+
+### DNS Configuration
+
+Users need to add this DNS record at their domain provider:
+
+| Type | Name | Value |
+|------|------|-------|
+| CNAME | status (or subdomain) | cname.vercel-dns.com |
+
+DNS changes can take up to 48 hours to propagate.
 
 ## Demo Mode
 

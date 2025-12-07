@@ -55,6 +55,8 @@ export type PublicPage = {
   description: string
   logoUrl?: string
   customDomain?: string
+  domainVerified?: boolean
+  domainVerificationError?: string
   serviceIds: string[]
   isPublished: boolean
   showEndpointDetails: boolean

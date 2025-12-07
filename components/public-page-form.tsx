@@ -8,7 +8,8 @@ import { generateId } from "@/lib/health-check-store"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { X, Globe, Eye, EyeOff, Check, ExternalLink, Copy, Palette } from "lucide-react"
+import { DomainSetup } from "@/components/domain-setup"
+import { X, Eye, EyeOff, Check, ExternalLink, Copy, Palette } from "lucide-react"
 
 interface PublicPageFormProps {
   page?: PublicPage
@@ -38,6 +39,7 @@ export function PublicPageForm({ page, services, onSave, onCancel }: PublicPageF
     description: page?.description || "",
     logoUrl: page?.logoUrl || "",
     customDomain: page?.customDomain || "",
+    domainVerified: page?.domainVerified || false,
     serviceIds: page?.serviceIds || [],
     isPublished: page?.isPublished || false,
     showEndpointDetails: page?.showEndpointDetails !== false,
@@ -74,6 +76,14 @@ export function PublicPageForm({ page, services, onSave, onCancel }: PublicPageF
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "")
+  }
+
+  const handleDomainChange = (domain: string | null, verified: boolean) => {
+    setFormData({
+      ...formData,
+      customDomain: domain || "",
+      domainVerified: verified,
+    })
   }
 
   return (
@@ -177,22 +187,23 @@ export function PublicPageForm({ page, services, onSave, onCancel }: PublicPageF
             </div>
           </div>
 
-          {/* Custom Domain */}
-          <div>
-            <label className="block text-sm font-bold uppercase mb-2 flex items-center gap-2">
-              <Globe className="w-4 h-4" />
-              Custom Domain (Optional)
-            </label>
-            <Input
-              value={formData.customDomain}
-              onChange={(e) => setFormData({ ...formData, customDomain: e.target.value })}
-              placeholder="status.yourdomain.com"
-              className="border-2 border-black"
+          {page && (
+            <DomainSetup
+              pageId={formData.id!}
+              currentDomain={formData.customDomain || undefined}
+              domainVerified={formData.domainVerified}
+              onDomainChange={handleDomainChange}
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              Point your domain's CNAME to this app's URL, then enter it here.
-            </p>
-          </div>
+          )}
+
+          {!page && (
+            <div className="p-4 bg-muted border-2 border-dashed border-black">
+              <div className="text-sm font-bold uppercase mb-1">Custom Domain</div>
+              <p className="text-xs text-muted-foreground">
+                Save the page first, then edit it to configure a custom domain.
+              </p>
+            </div>
+          )}
 
           {/* Select Services */}
           <div>
@@ -258,7 +269,7 @@ export function PublicPageForm({ page, services, onSave, onCancel }: PublicPageF
               <div className="text-sm font-bold uppercase mb-2">Public URL</div>
               <div className="flex items-center gap-2">
                 <code className="flex-1 text-sm font-mono bg-background p-2 border border-black truncate">
-                  {publicUrl}
+                  {formData.customDomain && formData.domainVerified ? `https://${formData.customDomain}` : publicUrl}
                 </code>
                 <Button
                   type="button"
